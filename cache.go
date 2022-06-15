@@ -1,50 +1,54 @@
 package cache
 
 import (
-	"sync"
 	"time"
 )
 
-type Info struct {
-	value    string
-	deadline *time.Time
-}
-
 type Cache struct {
-	mutex sync.Mutex
-	c     map[string]Info
+	value    string
+	deadline time.Time
 }
 
-func NewCache() Cache {
-	return Cache{c: map[string]Info{}}
+type MainCache struct {
+	c map[string]Cache
 }
 
-func (c *Cache) Get(key string) (string, bool) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	if _, ok := c.c[key]; ok {
-		return "", false
-	}
-	return "", true
+func NewCache() MainCache {
+	return MainCache{c: map[string]Cache{}}
 }
 
-func (c *Cache) Put(key, value string) {
-	c.mutex.Lock()
-	c.c[key] = Info{value, nil}
-	c.mutex.Unlock()
+func (c *MainCache) Put(key, value string) {
+
+	c.c[key] = Cache{value: value, deadline: time.Now().AddDate(100, 0, 0)}
 	return
 }
 
-func (c *Cache) Keys() []string {
+func (c *MainCache) PutTill(key, value string, deadline time.Time) {
+
+	c.c[key] = Cache{value: value, deadline: deadline}
+	return
+}
+
+func (c *MainCache) Get(key string) (string, bool) {
+
+	if c.c[key].deadline.Before(time.Now()) {
+		return "", false
+	}
+
+	if val, ok := c.c[key]; ok {
+		return val.value, true
+	}
+
+	return "", true
+}
+
+func (c *MainCache) Keys() []string {
 	keys := []string{}
-	for k, _ := range c.c {
+	for k, v := range c.c {
+		if v.deadline.Before(time.Now()) {
+			continue
+		}
 		keys = append(keys, k)
 	}
 	return keys
-}
-
-func (c *Cache) PutTill(key, value string, deadline time.Time) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	c.c[key] = Info{value, &deadline}
 }
